@@ -205,4 +205,4 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-commands_config.json
+commands_config.jsonkwik-cmd
