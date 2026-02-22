@@ -3,14 +3,18 @@ package tracker
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/kaustuvbot/kwik-cmd/internal/db"
 	"github.com/kaustuvbot/kwik-cmd/internal/parser"
 )
 
-// TrackCommand tracks a command execution
+// TrackCommand tracks a command execution (legacy, assumes success)
 func TrackCommand(cmd string) error {
+	return TrackCommandWithStatus(cmd, true, 0)
+}
+
+// TrackCommandWithStatus tracks a command with its exit status
+func TrackCommandWithStatus(cmd string, success bool, exitCode int) error {
 	if err := db.Init(); err != nil {
 		return fmt.Errorf("failed to initialize database: %w", err)
 	}
@@ -49,12 +53,16 @@ func TrackCommand(cmd string) error {
 		}
 	}
 
-	// Record usage
-	if err := db.RecordUsage(commandID, true, 0); err != nil {
+	// Record usage with success/failure status
+	if err := db.RecordUsage(commandID, success, exitCode); err != nil {
 		return fmt.Errorf("failed to record usage: %w", err)
 	}
 
-	fmt.Printf("Tracked: %s\n", parsed.FullCmd)
+	status := "success"
+	if !success || exitCode != 0 {
+		status = "failed"
+	}
+	fmt.Printf("Tracked: %s [%s, exit=%d]\n", parsed.FullCmd, status, exitCode)
 	return nil
 }
 
@@ -111,9 +119,4 @@ func GetCurrentDirectory() string {
 		return ""
 	}
 	return dir
-}
-
-// GetTimestamp returns the current timestamp
-func GetTimestamp() time.Time {
-	return time.Now()
 }
