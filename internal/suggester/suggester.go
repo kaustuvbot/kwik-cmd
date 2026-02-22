@@ -2,98 +2,45 @@ package suggester
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/kaustuvbot/kwik-cmd/internal/db"
 )
 
-// Suggest provides command suggestions for partial input
+// Suggest provides command suggestions using ranking engine
 func Suggest(partial string) error {
 	if err := db.Init(); err != nil {
 		return fmt.Errorf("failed to initialize database: %w", err)
 	}
 	defer db.Close()
 
+	// Get current directory for context awareness
+	currentDir, _ := os.Getwd()
+
 	partial = strings.TrimSpace(partial)
-	if partial == "" {
-		// Show recent and top if no input
-		return showSuggestions("", 3, 3)
-	}
 
-	// Get commands that match the partial input
-	recent, err := db.GetRecentCommands(10)
+	// Use ranking engine for intelligent suggestions
+	ranked, err := db.GetRankedCommands(partial, currentDir, 10)
 	if err != nil {
-		return fmt.Errorf("failed to get recent commands: %w", err)
+		return fmt.Errorf("failed to get ranked commands: %w", err)
 	}
 
-	top, err := db.GetTopCommands(10)
-	if err != nil {
-		return fmt.Errorf("failed to get top commands: %w", err)
+	if len(ranked) == 0 {
+		fmt.Println("No commands found. Start tracking commands with 'kwik-cmd track <command>'")
+		return nil
 	}
 
-	// Filter by partial match
-	var recentMatched []db.Command
-	var topMatched []db.Command
+	fmt.Printf("=== Suggestions for '%s' ===\n", partial)
+	fmt.Println("(Ranked by: recency + frequency + directory context)\n")
 
-	for _, c := range recent {
-		if strings.HasPrefix(strings.ToLower(c.Base), strings.ToLower(partial)) ||
-			strings.HasPrefix(strings.ToLower(c.FullCommand), strings.ToLower(partial)) {
-			recentMatched = append(recentMatched, c)
+	for i, rc := range ranked {
+		dirTag := ""
+		if currentDir != "" && rc.Directory == currentDir {
+			dirTag = " [current dir]"
 		}
-	}
-
-	for _, c := range top {
-		if strings.HasPrefix(strings.ToLower(c.Base), strings.ToLower(partial)) ||
-			strings.HasPrefix(strings.ToLower(c.FullCommand), strings.ToLower(partial)) {
-			topMatched = append(topMatched, c)
-		}
-	}
-
-	// Remove duplicates
-	seen := make(map[int64]bool)
-	var uniqueRecent []db.Command
-	for _, c := range recentMatched {
-		if !seen[c.ID] {
-			seen[c.ID] = true
-			uniqueRecent = append(uniqueRecent, c)
-		}
-	}
-
-	seen = make(map[int64]bool)
-	var uniqueTop []db.Command
-	for _, c := range topMatched {
-		if !seen[c.ID] {
-			seen[c.ID] = true
-			uniqueTop = append(uniqueTop, c)
-		}
-	}
-
-	// Display results
-	fmt.Printf("=== Suggestions for '%s' ===\n\n", partial)
-
-	if len(uniqueRecent) > 0 {
-		fmt.Println("Recent:")
-		for i, c := range uniqueRecent {
-			if i >= 5 {
-				break
-			}
-			fmt.Printf("  %d. %s (used %d times)\n", i+1, c.FullCommand, c.Frequency)
-		}
-		fmt.Println()
-	}
-
-	if len(uniqueTop) > 0 {
-		fmt.Println("Most Used:")
-		for i, c := range uniqueTop {
-			if i >= 5 {
-				break
-			}
-			fmt.Printf("  %d. %s (used %d times)\n", i+1, c.FullCommand, c.Frequency)
-		}
-	}
-
-	if len(uniqueRecent) == 0 && len(uniqueTop) == 0 {
-		fmt.Println("No matching commands found.")
+		fmt.Printf("  %d. %s (score: %.2f, used: %d times)%s\n",
+			i+1, rc.FullCommand, rc.Score, rc.Frequency, dirTag)
 	}
 
 	return nil
@@ -111,6 +58,9 @@ func Search(keywords string) error {
 		return fmt.Errorf("please provide search keywords")
 	}
 
+	// Get current directory for context
+	currentDir, _ := os.Getwd()
+
 	// Split keywords
 	words := strings.Fields(strings.ToLower(keywords))
 
@@ -122,7 +72,7 @@ func Search(keywords string) error {
 
 	fmt.Printf("=== Search results for '%s' ===\n\n", keywords)
 
-	var matches []db.Command
+	var matches []db.RankedCommand
 	for _, c := range all {
 		cmdLower := strings.ToLower(c.FullCommand)
 		match := true
@@ -133,15 +83,26 @@ func Search(keywords string) error {
 			}
 		}
 		if match {
-			matches = append(matches, c)
+			// Calculate simple score for search results
+			score := float64(c.Frequency) * 0.5
+			matches = append(matches, db.RankedCommand{
+				Command: c,
+				Score:   score,
+			})
 		}
 	}
 
 	if len(matches) == 0 {
-		// Try keyword search
-		matches, err = db.SearchByKeyword(keywords)
+		// Try keyword search from DB
+		keywordResults, err := db.SearchByKeyword(keywords)
 		if err != nil {
 			return fmt.Errorf("search failed: %w", err)
+		}
+		for _, c := range keywordResults {
+			matches = append(matches, db.RankedCommand{
+				Command: c,
+				Score:   float64(c.Frequency),
+			})
 		}
 	}
 
@@ -150,37 +111,25 @@ func Search(keywords string) error {
 		return nil
 	}
 
-	for i, c := range matches {
+	// Sort by score
+	for i := 0; i < len(matches)-1; i++ {
+		for j := i + 1; j < len(matches); j++ {
+			if matches[j].Score > matches[i].Score {
+				matches[i], matches[j] = matches[j], matches[i]
+			}
+		}
+	}
+
+	for i, rc := range matches {
 		if i >= 20 {
 			break
 		}
-		fmt.Printf("%d. %s\n   Used %d times, last: %s\n\n",
-			i+1, c.FullCommand, c.Frequency, c.LastUsed.Format("2006-01-02 15:04"))
-	}
-
-	return nil
-}
-
-// showSuggestions shows recent and top commands
-func showSuggestions(prefix string, recentCount, topCount int) error {
-	recent, err := db.GetRecentCommands(recentCount)
-	if err != nil {
-		return err
-	}
-
-	top, err := db.GetTopCommands(topCount)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("=== Recent Commands ===")
-	for i, c := range recent {
-		fmt.Printf("%d. %s\n", i+1, c.FullCommand)
-	}
-
-	fmt.Println("\n=== Most Used Commands ===")
-	for i, c := range top {
-		fmt.Printf("%d. %s (used %d times)\n", i+1, c.FullCommand, c.Frequency)
+		dirTag := ""
+		if currentDir != "" && rc.Directory == currentDir {
+			dirTag = " [current dir]"
+		}
+		fmt.Printf("%d. %s\n   Used %d times, last: %s%s\n\n",
+			i+1, rc.FullCommand, rc.Frequency, rc.LastUsed.Format("2006-01-02 15:04"), dirTag)
 	}
 
 	return nil

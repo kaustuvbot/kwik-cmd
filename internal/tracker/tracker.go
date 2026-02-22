@@ -33,6 +33,22 @@ func TrackCommand(cmd string) error {
 		return fmt.Errorf("failed to add command: %w", err)
 	}
 
+	// Add keywords
+	keywords := parser.ExtractKeywords(parsed)
+	for _, kw := range keywords {
+		if err := db.AddKeyword(commandID, kw); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to add keyword %s: %v\n", kw, err)
+		}
+	}
+
+	// Add flags with meanings
+	for _, flag := range parsed.Flags {
+		meaning := parser.FlagMeaning(flag)
+		if err := db.AddFlag(commandID, flag, meaning); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to add flag %s: %v\n", flag, err)
+		}
+	}
+
 	// Record usage
 	if err := db.RecordUsage(commandID, true, 0); err != nil {
 		return fmt.Errorf("failed to record usage: %w", err)
