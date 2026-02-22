@@ -5,7 +5,18 @@ import (
 	"os"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/kaustuvbot/kwik-cmd/internal/db"
+)
+
+var (
+	bold    = color.New(color.Bold)
+	cyan    = color.New(color.FgCyan)
+	green   = color.New(color.FgGreen)
+	yellow  = color.New(color.FgYellow)
+	magenta = color.New(color.FgMagenta)
+	white   = color.New(color.FgWhite)
+	dim     = color.New(color.FgBlack)
 )
 
 // Suggest provides command suggestions using ranking engine
@@ -27,20 +38,30 @@ func Suggest(partial string) error {
 	}
 
 	if len(ranked) == 0 {
-		fmt.Println("No commands found. Start tracking commands with 'kwik-cmd track <command>'")
+		yellow.Println("No commands found. Start tracking commands with 'kwik-cmd track <command>'")
 		return nil
 	}
 
-	fmt.Printf("=== Suggestions for '%s' ===\n", partial)
-	fmt.Println("(Ranked by: recency + frequency + directory context)\n")
+	cyan.Print("=== Suggestions for '")
+	white.Print(partial)
+	cyan.Println("' ===")
+	dim.Println("(Ranked by: recency + frequency + directory context)\n")
 
 	for i, rc := range ranked {
-		dirTag := ""
+		// Number in bold cyan
+		bold.Printf("  %d. ", i+1)
+		
+		// Command in green
+		green.Print(rc.FullCommand)
+		
+		// Score in dim
+		dim.Printf(" (score: %.2f, used: %d times)", rc.Score, rc.Frequency)
+		
+		// Current dir tag in magenta
 		if currentDir != "" && rc.Directory == currentDir {
-			dirTag = " [current dir]"
+			magenta.Print(" [current dir]")
 		}
-		fmt.Printf("  %d. %s (score: %.2f, used: %d times)%s\n",
-			i+1, rc.FullCommand, rc.Score, rc.Frequency, dirTag)
+		fmt.Println()
 	}
 
 	return nil
@@ -70,7 +91,9 @@ func Search(keywords string) error {
 		return fmt.Errorf("failed to get commands: %w", err)
 	}
 
-	fmt.Printf("=== Search results for '%s' ===\n\n", keywords)
+	cyan.Print("=== Search results for '")
+	white.Print(keywords)
+	cyan.Println("' ===\n")
 
 	var matches []db.RankedCommand
 	for _, c := range all {
@@ -107,7 +130,7 @@ func Search(keywords string) error {
 	}
 
 	if len(matches) == 0 {
-		fmt.Println("No matching commands found.")
+		yellow.Println("No matching commands found.")
 		return nil
 	}
 
@@ -124,12 +147,13 @@ func Search(keywords string) error {
 		if i >= 20 {
 			break
 		}
-		dirTag := ""
+		bold.Printf("%d. ", i+1)
+		green.Println(rc.FullCommand)
+		dim.Printf("   Used %d times, last: %s", rc.Frequency, rc.LastUsed.Format("2006-01-02 15:04"))
 		if currentDir != "" && rc.Directory == currentDir {
-			dirTag = " [current dir]"
+			magenta.Print(" [current dir]")
 		}
-		fmt.Printf("%d. %s\n   Used %d times, last: %s%s\n\n",
-			i+1, rc.FullCommand, rc.Frequency, rc.LastUsed.Format("2006-01-02 15:04"), dirTag)
+		fmt.Println("\n")
 	}
 
 	return nil

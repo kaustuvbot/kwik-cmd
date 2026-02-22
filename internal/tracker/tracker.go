@@ -4,8 +4,18 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/fatih/color"
 	"github.com/kaustuvbot/kwik-cmd/internal/db"
 	"github.com/kaustuvbot/kwik-cmd/internal/parser"
+)
+
+var (
+	bold   = color.New(color.Bold)
+	cyan   = color.New(color.FgCyan)
+	green  = color.New(color.FgGreen)
+	yellow = color.New(color.FgYellow)
+	white  = color.New(color.FgWhite)
+	dim    = color.New(color.FgBlack)
 )
 
 // TrackCommand tracks a command execution (legacy, assumes success)
@@ -58,11 +68,16 @@ func TrackCommandWithStatus(cmd string, success bool, exitCode int) error {
 		return fmt.Errorf("failed to record usage: %w", err)
 	}
 
-	status := "success"
-	if !success || exitCode != 0 {
-		status = "failed"
+	// Colored output
+	green.Print("✓ Tracked: ")
+	white.Print(parsed.FullCmd)
+	
+	if success && exitCode == 0 {
+		cyan.Print(" [success]")
+	} else {
+		yellow.Printf(" [failed, exit=%d]", exitCode)
 	}
-	fmt.Printf("Tracked: %s [%s, exit=%d]\n", parsed.FullCmd, status, exitCode)
+	fmt.Println()
 	return nil
 }
 
@@ -78,9 +93,11 @@ func ShowStats() error {
 		return fmt.Errorf("failed to get stats: %w", err)
 	}
 
-	fmt.Printf("=== kwik-cmd Statistics ===\n")
-	fmt.Printf("Total unique commands: %d\n", total)
-	fmt.Printf("Total executions: %d\n", executions)
+	bold.Println("=== kwik-cmd Statistics ===")
+	fmt.Print("Total unique commands: ")
+	cyan.Printf("%d\n", total)
+	fmt.Print("Total executions: ")
+	green.Printf("%d\n", executions)
 
 	// Show recent commands
 	recent, err := db.GetRecentCommands(5)
@@ -89,10 +106,12 @@ func ShowStats() error {
 	}
 
 	if len(recent) > 0 {
-		fmt.Printf("\n=== Recent Commands ===\n")
+		bold.Print("\n=== Recent Commands ===\n")
 		for i, c := range recent {
-			fmt.Printf("%d. %s (used %d times, last: %s)\n",
-				i+1, c.FullCommand, c.Frequency, c.LastUsed.Format("2006-01-02 15:04"))
+			bold.Printf("%d. ", i+1)
+			green.Print(c.FullCommand)
+			dim.Printf(" (used %d times, last: %s)\n",
+				c.Frequency, c.LastUsed.Format("2006-01-02 15:04"))
 		}
 	}
 
@@ -103,9 +122,11 @@ func ShowStats() error {
 	}
 
 	if len(top) > 0 {
-		fmt.Printf("\n=== Most Used Commands ===\n")
+		bold.Print("\n=== Most Used Commands ===\n")
 		for i, c := range top {
-			fmt.Printf("%d. %s (used %d times)\n", i+1, c.FullCommand, c.Frequency)
+			bold.Printf("%d. ", i+1)
+			green.Print(c.FullCommand)
+			dim.Printf(" (used %d times)\n", c.Frequency)
 		}
 	}
 

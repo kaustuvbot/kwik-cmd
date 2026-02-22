@@ -3,8 +3,18 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/fatih/color"
 	"github.com/kaustuvbot/kwik-cmd/internal/db"
 	"github.com/spf13/cobra"
+)
+
+var (
+	bold    = color.New(color.Bold)
+	cyan    = color.New(color.FgCyan)
+	green   = color.New(color.FgGreen)
+	yellow  = color.New(color.FgYellow)
+	magenta = color.New(color.FgMagenta)
+	dim     = color.New(color.FgBlack)
 )
 
 var analyzeCmd = &cobra.Command{
@@ -16,7 +26,7 @@ var analyzeCmd = &cobra.Command{
 		}
 		defer db.Close()
 
-		fmt.Println("=== Command Pattern Analysis ===\n")
+		bold.Println("=== Command Pattern Analysis ===\n")
 
 		// Show patterns
 		patterns, err := db.DetectPatterns()
@@ -25,23 +35,24 @@ var analyzeCmd = &cobra.Command{
 		}
 
 		if len(patterns) > 0 {
-			fmt.Println("Detected Patterns:")
+			bold.Println("Detected Patterns:")
 			for _, p := range patterns {
-				fmt.Printf("\n  %s (used %d times):\n", p.BaseCommand, p.RunCount)
+				cyan.Printf("\n  %s ", p.BaseCommand)
+				dim.Printf("(used %d times):\n", p.RunCount)
 				for i, c := range p.Commands {
 					if i >= 5 {
-						fmt.Println("    ...")
+						dim.Println("    ...")
 						break
 					}
-					fmt.Printf("    - %s\n", c)
+					green.Printf("    - %s\n", c)
 				}
 			}
 		} else {
-			fmt.Println("No patterns detected yet. Track more commands!")
+			yellow.Println("No patterns detected yet. Track more commands!")
 		}
 
 		// Show failure stats
-		fmt.Println("\n=== Failure Analysis ===")
+		bold.Print("\n=== Failure Analysis ===\n")
 		failures, err := db.GetFailureStats()
 		if err != nil {
 			return fmt.Errorf("failed to get failure stats: %w", err)
@@ -49,28 +60,28 @@ var analyzeCmd = &cobra.Command{
 
 		if len(failures) > 0 {
 			for _, f := range failures {
-				fmt.Printf("\n  %s\n", f.FullCommand)
-				fmt.Printf("    Runs: %d, Failures: %d, Success Rate: %.1f%%\n",
+				green.Printf("\n  %s\n", f.FullCommand)
+				dim.Printf("    Runs: %d, Failures: %d, Success Rate: %.1f%%\n",
 					f.TotalRuns, f.Failures, f.SuccessRate)
 			}
 		} else {
-			fmt.Println("No failures recorded yet.")
+			dim.Println("No failures recorded yet.")
 		}
 
 		// Show alias suggestions
-		fmt.Println("\n=== Alias Suggestions ===")
+		bold.Print("\n=== Alias Suggestions ===\n")
 		aliases, err := db.SuggestAliases()
 		if err != nil {
 			return fmt.Errorf("failed to suggest aliases: %w", err)
 		}
 
 		if len(aliases) > 0 {
-			fmt.Println("Add these to your ~/.bashrc or ~/.zshrc:")
+			magenta.Println("Add these to your ~/.bashrc or ~/.zshrc:")
 			for _, a := range aliases {
-				fmt.Printf("  %s\n", a)
+				green.Printf("  %s\n", a)
 			}
 		} else {
-			fmt.Println("No alias suggestions yet. Track more commands!")
+			dim.Println("No alias suggestions yet. Track more commands!")
 		}
 
 		return nil
