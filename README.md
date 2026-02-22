@@ -1,125 +1,95 @@
-# **QuickCmd: KDE Command Executor Widget**
+# kwik-cmd
 
-QuickCmd is a **KDE Plasma widget** designed to let you quickly run, manage, and store custom shell commands right from your desktop panel. Whether you're a developer, sysadmin, or a power user, QuickCmd will help you execute commands and manage tasks efficiently with just a few clicks.
+A high-performance CLI tool written in Go that tracks terminal commands automatically, learns usage patterns, and suggests intelligent command completions.
 
----
+## Features
 
-## 🚀 **Installation**
+- **Command Tracking**: Automatically tracks commands executed in your terminal
+- **Intelligent Suggestions**: Ranks commands by recency + frequency + directory context
+- **Keyword Search**: Search commands by keywords with fuzzy matching
+- **Pattern Detection**: Detects command patterns (e.g., git subcommands)
+- **Failure Analysis**: Tracks command success/failure rates
+- **Alias Suggestions**: Suggests aliases based on usage patterns
+- **Shell Integration**: Works with Bash and Zsh
 
-### 1. **Install Dependencies**
+## Installation
 
-Before running QuickCmd, ensure you have the required dependencies installed on your system:
-
-```bash
-sudo apt update
-sudo apt install python3 python3-pyqt5
-```
-
-### 2. **Clone the Repository**
-
-Clone the repository to your local machine:
+### From Source
 
 ```bash
-git clone https://github.com/yourusername/QuickCmd.git
-cd QuickCmd
+git clone https://github.com/kaustuvbot/kwik-cmd.git
+cd kwik-cmd
+go build -o kwik-cmd .
+sudo mv kwik-cmd /usr/local/bin/
 ```
 
-### 3. **Install Plasma SDK (for KDE Widgets)**
+### Pre-built Binaries
 
-To develop Plasma widgets, you need to install the Plasma SDK if it's not already installed:
+Download from the [Releases](https://github.com/kaustuvbot/kwik-cmd/releases) page.
+
+## Shell Integration
+
+### Bash
+
+Add to your `~/.bashrc`:
 
 ```bash
-sudo apt install plasma-sdk
+source /path/to/kwik-cmd/shell/bash_hook.sh
 ```
 
-### 4. **Run the Widget**
+### Zsh
 
-Simply run the widget by executing the following command:
+Add to your `~/.zshrc`:
 
 ```bash
-python3 main.py
+source /path/to/kwik-cmd/shell/zsh_hook.sh
 ```
 
-This will launch the **KDE Command Executor** widget on your desktop.
+## Usage
 
----
-
-## ⚙️ **Usage**
-
-### 1. **Run Commands**
-
-You can quickly run commands by selecting one from the dropdown menu and clicking the **Run Command** button. The selected command will be executed directly from your panel.
-
-### 2. **Add New Commands**
-
-- Enter the **Command Name** and the **Command** in the provided fields.
-- Click **Add New Command** to add it to the list.
-- The new command will be saved in a JSON configuration file and can be executed instantly.
-
-### 3. **Update Commands**
-
-- To update an existing command, select it from the dropdown, enter the new details, and click **Update Command**.
-- The command will be updated in the configuration file automatically.
-
-### 4. **Delete Commands**
-
-- Select the command you want to delete from the dropdown.
-- Click **Delete Command**, and it will be removed from the panel and configuration.
-
-### 5. **Persistent Storage**
-
-All commands are saved in a `commands_config.json` file, so your commands will persist even after you close the widget.
-
----
-
-## 🔧 **Configuration File**
-
-QuickCmd stores all the commands you add in a JSON file called `commands_config.json` located in the project directory.
-
-Here’s an example of how the file looks:
-
-```json
-{
-  "commands": [
-    {
-      "name": "List Files",
-      "command": "ls -l"
-    },
-    {
-      "name": "Update System",
-      "command": "sudo apt update && sudo apt upgrade"
-    }
-  ]
-}
+### Track a command
+```bash
+kwik-cmd track "git commit -m 'fix bug'"
+kwik-cmd track "docker build" --exit-code 0  # Track with exit status
 ```
 
----
+### Get suggestions
+```bash
+kwik-cmd suggest "git"     # Get suggestions for partial command
+kwik-cmd suggest           # Get all top suggestions
+```
 
-## 🎨 **Customization**
+### Search commands
+```bash
+kwik-cmd search "commit message"
+```
 
-QuickCmd is customizable, and you can easily modify the commands, layout, or even extend it with more functionality. Here’s what you can do:
+### View statistics
+```bash
+kwik-cmd stats
+```
 
-- **Modify Command Names and Commands**: Edit the `commands_config.json` file directly to change existing commands.
-- **Change the UI**: Customize the widget’s interface by modifying the `kde_widget.py` file. You can adjust layouts, labels, or even add new functionalities to enhance the app.
+### Analyze patterns
+```bash
+kwik-cmd analyze
+```
 
----
+### Reset history
+```bash
+kwik-cmd reset
+```
 
-## 📜 **License**
+## Ranking Algorithm
 
-QuickCmd is licensed under the **MIT License**.
+Suggestions are ranked using a weighted scoring system:
+- **Recency (40%)**: More recent commands score higher
+- **Frequency (40%)**: Frequently used commands score higher
+- **Directory Context (20%)**: Commands used in current directory are boosted
 
----
+## Database
 
-## 🌟 **Contributing**
+Commands are stored in `~/.kwik-cmd/commands.db`
 
-Feel free to fork this repository and create pull requests with your improvements. If you have any feature requests, open an issue, and we’ll look into it!
+## License
 
----
-
-## 🤖 **Support**
-
-For any questions or issues, please open an issue on GitHub, and I’ll be happy to help. You can also reach out directly via email or the repository discussions section.
-
----
-
-**Happy Commanding!** ✨
+MIT
