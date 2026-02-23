@@ -1,63 +1,27 @@
 #!/bin/zsh
-# kwik-cmd - Show suggestions in RPROMPT (right side of prompt)
+# kwik-cmd - Integrates with zsh-autosuggestions
+# Shows suggestions at bottom, navigate with Tab/arrows
 
-# Check if kwik-cmd exists
-(( $+commands[kwik-cmd] )) || return
+# Source zsh-autosuggestions first
+if [ -f "$ZSH_CUSTOM/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh" ]; then
+    source "$ZSH_CUSTOM/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh"
+elif [ -f "$ZSH/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh" ]; then
+    source "$ZSH/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh"
+fi
 
-# Update RPROMPT with suggestion
-kwik-update-rprompt() {
-    local buffer="$BUFFER"
+# Override to use kwik-cmd
+_zsh_autosuggest_suggest() {
+    local buffer="$1"
+    [ -z "$buffer" ] && return
     
-    # Don't for empty or very short
-    (( ${#buffer} < 1 )) && return
-    
-    # Skip ignored commands
-    local base="${buffer%% *}"
-    case "$base" in
-        cd|ls|ll|la|l|pwd|echo|exit|export|declare|typeset|unset|shift|\
-        local|readonly|help|which|what|time|fg|bg|jobs|kill|builtin|test|\
-        true|false|logout|shopt|umask|set|setenv|printenv|eval|exec|source|alias|unalias|\
-        sudo|rm|mkdir|touch|cat|grep|sed|awk|find|xargs|sort|uniq|head|tail|wc|clear)
-            RPROMPT=""
-            return
-            ;;
-    esac
-    
-    # Get suggestion
-    local suggestion
-    suggestion=$(kwik-cmd suggest "$buffer" 2>/dev/null | sed -n '2p' | sed 's/^[ ]*[0-9]*\. //')
-    
-    if [ -n "$suggestion" ]; then
-        RPROMPT="%F{243}$suggestion%f"
-    else
-        RPROMPT=""
-    fi
+    # Get first suggestion from kwik-cmd
+    kwik-cmd suggest "$buffer" 2>/dev/null | sed -n '2p' | sed 's/^[ ]*[0-9]*\. //'
 }
 
-# Accept suggestion widget
-kwik-accept-rprompt() {
-    if [ -n "$RPROMPT" ]; then
-        local suggestion
-        suggestion=$(kwik-cmd suggest "$BUFFER" 2>/dev/null | sed -n '2p' | sed 's/^[ ]*[0-9]*\. //')
-        if [ -n "$suggestion" ]; then
-            BUFFER="$suggestion"
-            CURSOR=${#BUFFER}
-            RPROMPT=""
-        fi
-    fi
-}
+# Enable
+ZSH_AUTOSUGGEST_USE_ASYNC=false
+ZSH_AUTOSUGGEST_HISTORY_IGNORE="cd |ls |ll |la |pwd |echo |exit |sudo |rm |clear"
 
-# Create widgets
-zle -N kwik-update-rprompt
-zle -N kwik-accept-rprompt
-
-# Hook into zle - update on every keypress
-zle -N zle-keymap-select kwik-update-rprompt
-zle -N zle-line-init kwik-update-rprompt
-
-# Accept with Ctrl+F
-bindkey "^F" kwik-accept-rprompt
-
-echo "kwik-cmd RPROMPT suggestions loaded!"
-echo "Suggestions appear on the right side of your prompt"
-echo "Press Ctrl+F to accept"
+echo "kwik-cmd + zsh-autosuggestions loaded!"
+echo "Type command - suggestions appear at bottom"
+echo "Press Tab or Right Arrow to accept"
