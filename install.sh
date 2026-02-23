@@ -6,137 +6,111 @@ set -e
 
 VERSION="0.1.0"
 INSTALL_DIR="/usr/local/bin"
-CONFIG_DIR="$HOME/.kwik-cmd"
 
 echo "=== kwik-cmd Installer ==="
 echo "Version: $VERSION"
 echo ""
 
-# Check if running as root or have sudo access
-if [ "$EUID" -ne 0 ] && ! sudo -v 2>/dev/null; then
-    echo "Note: Installation requires sudo. Please enter password if prompted."
+# Detect shell
+DETECTED_SHELL=""
+if [ -n "$ZSH_VERSION" ]; then
+    DETECTED_SHELL="zsh"
+elif [ -n "$BASH_VERSION" ]; then
+    DETECTED_SHELL="bash"
+else
+    # Fallback: check login shell
+    DETECTED_SHELL=$(basename "$SHELL" 2>/dev/null || echo "bash")
 fi
 
-# Detect architecture
-ARCH=$(uname -m)
-case "$ARCH" in
-    x86_64)
-        ARCH_NAME="amd64"
+echo "Detected shell: $DETECTED_SHELL"
+
+# Determine RC file and hook
+case "$DETECTED_SHELL" in
+    zsh)
+        RC_FILE="$HOME/.zshrc"
+        HOOK_NAME="zsh_hook.sh"
         ;;
-    aarch64|arm64)
-        ARCH_NAME="arm64"
-        ;;
-    *)
-        echo "Unsupported architecture: $ARCH"
-        exit 1
+    bash|sh|*)
+        RC_FILE="$HOME/.bashrc"
+        HOOK_NAME="bash_hook.sh"
         ;;
 esac
 
-# Create download URL
-DOWNLOAD_URL="https://github.com/kaustuvbot/kwik-cmd/releases/download/v${VERSION}/kwik-cmd_${VERSION}_linux_${ARCH_NAME}.tar.gz"
+echo "Using RC file: $RC_FILE"
 
-# Create temp directory
+# Install binary
+echo "Installing kwik-cmd to $INSTALL_DIR..."
+
+# Try to download first
+DOWNLOADED=false
+ARCH=$(uname -m)
+case "$ARCH" in
+    x86_64) ARCH_NAME="amd64" ;;
+    aarch64|arm64) ARCH_NAME="arm64" ;;
+    *) ARCH_NAME="amd64" ;;
+esac
+
 TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
 
-echo "Downloading kwik-cmd..."
-if command -v wget &> /dev/null; then
-    wget -q -O kwik-cmd.tar.gz "$DOWNLOAD_URL" || {
-        echo "Failed to download. Building from source..."
-        rm -rf "$TEMP_DIR"
-        exec bash -c "$(cat <<'SOURCEINSTALL'
-cd /tmp
-git clone https://github.com/kaustuvbot/kwik-cmd.git
-cd kwik-cmd
-go build -o kwik-cmd .
-sudo mv kwik-cmd /usr/local/bin/
-echo "Installed! Add to shell:"
-echo "  source ~/.kwik-cmd/shell/bash_hook.sh  # for bash"
-echo "  source ~/.kwik-cmd/shell/zsh_hook.sh   # for zsh"
-SOURCEINSTALL
-)"
-    }
+if command -v curl &> /dev/null; then
+    curl -sSL -o kwik-cmd "https://github.com/kaustuvbot/kwik-cmd/releases/download/v${VERSION}/kwik-cmd_${VERSION}_linux_${ARCH_NAME}" 2>/dev/null && DOWNLOADED=true
+fi
+
+if [ "$DOWNLOADED" = true ] && [ -f kwik-cmd ]; then
+    chmod +x kwik-cmd
+    sudo mv kwik-cmd "$INSTALL_DIR/kwik-cmd"
 else
-    curl -sSL -o kwik-cmd.tar.gz "$DOWNLOAD_URL" || {
-        echo "Download failed. Please install from source."
-        exit 1
-    }
+    # Build from source
+    echo "Building from source..."
+    cd /tmp
+    rm -rf kwik-cmd
+    git clone --depth 1 https://github.com/kaustuvbot/kwik-cmd.git
+    cd kwik-cmd
+    go build -o kwik-cmd .
+    sudo mv kwik-cmd "$INSTALL_DIR/kwik-cmd"
+    rm -rf /tmp/kwik-cmd
 fi
 
-echo "Extracting..."
-tar -xzf kwik-cmd.tar.gz
+cd "$HOME"
 
-echo "Installing to $INSTALL_DIR..."
-sudo mv kwik-cmd "$INSTALL_DIR/kwik-cmd"
-chmod +x "$INSTALL_DIR/kwik-cmd"
-
-# Create config directory
-mkdir -p "$CONFIG_DIR"
-
-echo "Installing shell hooks..."
-
-# Detect shell
-SHELL_NAME=$(basename "$SHELL")
-case "$SHELL_NAME" in
-    bash)
-        HOOK_SOURCE="# kwik-cmd auto-tracking
-if command -v kwik-cmd &> /dev/null; then
-    source \"$CONFIG_DIR/shell/bash_hook.sh\"
-fi"
-        HOOK_FILE="$CONFIG_DIR/shell/bash_hook.sh"
-        ;;
-    zsh)
-        HOOK_SOURCE="# kwik-cmd auto-tracking
-if command -v kwik-cmd &> /dev/null; then
-    source \"$CONFIG_DIR/shell/zsh_hook.sh\"
-fi"
-        HOOK_FILE="$CONFIG_DIR/shell/zsh_hook.sh"
-        ;;
-    *)
-        echo "Unsupported shell: $SHELL_NAME"
-        ;;
-esac
-
-# Copy shell hooks
-mkdir -p "$CONFIG_DIR/shell"
-# We'll create the hooks from the binary itself or download them
-echo "Creating shell integration..."
-
-# Add to shell rc file
-RC_FILE=""
-if [ -n "$BASH_VERSION" ]; then
-    RC_FILE="$HOME/.bashrc"
-elif [ -n "$ZSH_VERSION" ]; then
-    RC_FILE="$HOME/.zshrc"
+# Copy shell hook
+mkdir -p "$HOME/.kwik-cmd/shell"
+if [ -f "./kwik-cmd/shell/$HOOK_NAME" ]; then
+    cp "./kwik-cmd/shell/$HOOK_NAME" "$HOME/.kwik-cmd/shell/"
+elif [ -f "/tmp/kwik-cmd/shell/$HOOK_NAME" ]; then
+    cp "/tmp/kwik-cmd/shell/$HOOK_NAME" "$HOME/.kwik-cmd/shell/"
 fi
 
-if [ -n "$RC_FILE" ] && [ -f "$RC_FILE" ]; then
-    if ! grep -q "kwik-cmd" "$RC_FILE" 2>/dev/null; then
+# Add to RC file if not already present
+HOOK_LINE="[ -f \"\$HOME/.kwik-cmd/shell/${HOOK_NAME}\" ] && source \"\$HOME/.kwik-cmd/shell/${HOOK_NAME}\""
+
+if [ -f "$RC_FILE" ]; then
+    if ! grep -q "kwik-cmd/shell" "$RC_FILE" 2>/dev/null; then
         echo "" >> "$RC_FILE"
         echo "# kwik-cmd command tracking" >> "$RC_FILE"
-        echo 'export PATH="$PATH:/usr/local/bin"' >> "$RC_FILE"
-        echo 'if command -v kwik-cmd &> /dev/null; then' >> "$RC_FILE"
-        echo '    source <(kwik-cmd completion bash)' >> "$RC_FILE" 2>/dev/null || true
-        echo 'fi' >> "$RC_FILE"
-        echo "Added to $RC_FILE"
+        echo "$HOOK_LINE" >> "$RC_FILE"
+        echo "Added hook to $RC_FILE"
+    else
+        echo "Hook already present in $RC_FILE"
     fi
+else
+    # Create RC file with hook
+    echo "# kwik-cmd command tracking" > "$RC_FILE"
+    echo "$HOOK_LINE" >> "$RC_FILE"
+    echo "Created $RC_FILE with hook"
 fi
-
-# Cleanup
-rm -rf "$TEMP_DIR"
 
 echo ""
 echo "=== Installation Complete! ==="
 echo ""
+echo "Restart your terminal or run:"
+echo "  source $RC_FILE"
+echo ""
 echo "Usage:"
 echo "  kwik-cmd track \"git commit -m 'fix'\"  # Track a command"
 echo "  kwik-cmd suggest \"git\"                # Get suggestions"
-echo "  kwik-cmd search \"commit\"              # Search commands"
 echo "  kwik-cmd stats                         # View statistics"
-echo "  kwik-cmd analyze                       # Analyze patterns"
 echo ""
-echo "For auto-tracking, restart your terminal or run:"
-echo "  source $RC_FILE"
-echo ""
-echo "Test it:"
+echo "Test:"
 echo "  kwik-cmd --version"
