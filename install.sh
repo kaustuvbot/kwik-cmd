@@ -74,22 +74,29 @@ fi
 
 cd "$HOME"
 
-# Copy shell hook
+# Copy shell hook and autocomplete
 mkdir -p "$HOME/.kwik-cmd/shell"
-if [ -f "./kwik-cmd/shell/$HOOK_NAME" ]; then
-    cp "./kwik-cmd/shell/$HOOK_NAME" "$HOME/.kwik-cmd/shell/"
-elif [ -f "/tmp/kwik-cmd/shell/$HOOK_NAME" ]; then
-    cp "/tmp/kwik-cmd/shell/$HOOK_NAME" "$HOME/.kwik-cmd/shell/"
-fi
+cp "./kwik-cmd/shell/$HOOK_NAME" "$HOME/.kwik-cmd/shell/" 2>/dev/null || true
+cp "./kwik-cmd/shell/zsh_autocomplete.sh" "$HOME/.kwik-cmd/shell/" 2>/dev/null || true
+cp "/tmp/kwik-cmd/shell/$HOOK_NAME" "$HOME/.kwik-cmd/shell/" 2>/dev/null || true
+cp "/tmp/kwik-cmd/shell/zsh_autocomplete.sh" "$HOME/.kwik-cmd/shell/" 2>/dev/null || true
 
 # Add to RC file if not already present
 HOOK_LINE="[ -f \"\$HOME/.kwik-cmd/shell/${HOOK_NAME}\" ] && source \"\$HOME/.kwik-cmd/shell/${HOOK_NAME}\""
+
+# Add autocomplete for zsh
+if [ "$DETECTED_SHELL" = "zsh" ]; then
+    AUTOCOMPLETE_LINE="[ -f \"\$HOME/.kwik-cmd/shell/zsh_autocomplete.sh\" ] && source \"\$HOME/.kwik-cmd/shell/zsh_autocomplete.sh\""
+fi
 
 if [ -f "$RC_FILE" ]; then
     if ! grep -q "kwik-cmd/shell" "$RC_FILE" 2>/dev/null; then
         echo "" >> "$RC_FILE"
         echo "# kwik-cmd command tracking" >> "$RC_FILE"
         echo "$HOOK_LINE" >> "$RC_FILE"
+        if [ "$DETECTED_SHELL" = "zsh" ]; then
+            echo "$AUTOCOMPLETE_LINE" >> "$RC_FILE"
+        fi
         echo "Added hook to $RC_FILE"
     else
         echo "Hook already present in $RC_FILE"
