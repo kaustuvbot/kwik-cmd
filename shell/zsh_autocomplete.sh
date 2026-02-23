@@ -1,91 +1,97 @@
-# kwik-cmd Zsh Autocomplete
-# Place in ~/.zshrc or source this file
+#!/bin/zsh
+# kwik-cmd Zsh Auto-suggestions
+# Shows suggestions as you type, like zsh-autosuggestions
 
-# Initialize completion system
-autoload -Uz compinit
+# Check if kwik-cmd exists
+(( $+commands[kwik-cmd] )) || return
 
-# kwik-cmd completion handler
-_kwik-cmd-complete() {
-    local -a cmd
-    cmd=(
-        'track:Track a command'
-        'suggest:Get suggestions'
-        'search:Search commands'
-        'stats:Show statistics'
-        'analyze:Analyze patterns'
-        'export:Export history'
-        'import:Import history'
-        'quick:Quick pick'
-        'rerun:Re-run last command'
-        'copy:Copy to clipboard'
-        'version:Show version'
-        'reset:Reset history'
-    )
-    
-    _describe 'command' cmd
-}
+# Suggestion state
+typeset -g KWIK_SUGGESTION=""
+typeset -g KWIK_LAST_BUFFER=""
 
-# Register completions
-compdef _kwik-cmd-complete kwik-cmd
-
-# For command arguments - provide suggestions based on history
-_kwik-cmd-arg-complete() {
-    local -a suggestions
-    local current_word="$WORDS[CURRENT]"
-    
-    # Get suggestions from kwik-cmd
-    if (( $+commands[kwik-cmd] )); then
-        suggestions=($(kwik-cmd suggest "$current_word" 2>/dev/null | sed -n 's/^[ ]*[0-9]*\. //p'))
-    fi
-    
-    if (( ${#suggestions} > 0 )); then
-        _describe 'command' suggestions
-    fi
-}
-
-# Setup aliases completion
-aliascompletion() {
-    compdef _kwik-cmd-arg-complete $@
-}
-
-# Bind auto-suggestion widget
-if (( $+widgets[kwik-cmd-suggest] )); then
-    zle -N kwik-cmd-suggest
-fi
-
-kwik-cmd-suggest() {
+# Get suggestion for current input
+kwik-fetch-suggestion() {
     local buffer="$BUFFER"
-    local -a suggestions
+    local cursor=$CURSOR
     
-    # Get suggestions for current buffer
-    if (( $+commands[kwik-cmd] )) && [ -n "$buffer" ]; then
-        suggestions=($(kwik-cmd suggest "$buffer" 2>/dev/null | sed -n 's/^[ ]*[0-9]*\. //p'))
-        
-        if (( ${#suggestions} > 0 )); then
-            # Show first suggestion
-            zle -M "${suggestions[1]}"
-        fi
+    # Don't suggest for empty or very short input
+    (( ${#buffer} < 1 )) && return
+    
+    # Skip ignored commands
+    local base="${buffer%% *}"
+    case "$base" in
+        cd|ls|ll|la|l|ls-|pwd|echo|exit|export|declare|typeset|unset|shift|\
+        local|readonly|help|which|what|time|fg|bg|jobs|kill|builtin|test|\
+        true|false|logout|shopt|umask|set|setenv|printenv|eval|exec|source|alias|unalias|\
+        sudo|rm|mkdir|touch|cat|grep|sed|awk|find|xargs|sort|uniq|head|tail|wc)
+            return
+            ;;
+    esac
+    
+    # Get suggestion
+    KWIK_SUGGESTION=$(kwik-cmd suggest "$buffer" 2>/dev/null | sed -n '2p' | sed 's/^[ ]*[0-9]*\. //')
+    KWIK_LAST_BUFFER="$buffer"
+}
+
+# Widget: Accept suggestion
+kwik-accept-suggestion() {
+    if [ -n "$KWIK_SUGGESTION" ] && [ "$BUFFER" != "$KWIK_SUGGESTION" ]; then
+        BUFFER="$KWIK_SUGGESTION"
+        CURSOR=${#BUFFER}
+        KWIK_SUGGESTION=""
     fi
 }
 
-# Accept suggestion with Ctrl+F
-kwik-cmd-accept-suggestion() {
-    local buffer="$BUFFER"
-    local -a suggestions
-    
-    if (( $+commands[kwik-cmd] )) && [ -n "$buffer" ]; then
-        suggestions=($(kwik-cmd suggest "$buffer" 2>/dev/null | sed -n 's/^[ ]*[0-9]*\. //p'))
-        
-        if (( ${#suggestions} > 0 )); then
-            BUFFER="$suggestions[1]"
-            CURSOR=${#BUFFER}
-        fi
+# Widget: Accept and execute
+kwik-accept-and-run() {
+    if [ -n "$KWIK_SUGGESTION" ]; then
+        BUFFER="$KWIK_SUGGESTION"
+        zle accept-line
     fi
 }
 
-zle -N kwik-cmd-accept-suggestion
+# Widget: Clear suggestion
+kwik-clear-suggestion() {
+    KWIK_SUGGESTION=""
+}
 
-# Key bindings
-bindkey "^F" kwik-cmd-accept-suggestion
+# Widget: Show suggestion (bind to cursor movement)
+kwik-suggest-show() {
+    # Only fetch if buffer changed
+    if [ "$BUFFER" != "$KWIK_LAST_BUFFER" ]; then
+        kwik-fetch-suggestion
+    fi
+    
+    # Show in zle message area
+    if [ -n "$KWIK_SUGGESTION" ]; then
+        zle -M "==> $KWIK_SUGGESTION"
+    else
+        zle -M ""
+    fi
+}
 
-echo "kwik-cmd autocomplete loaded. Use Ctrl+F to accept suggestions."
+# Create widgets
+zle -N kwik-accept-suggestion
+zle -N kwik-accept-and-run
+zle -N kwik-clear-suggestion
+zle -N kwik-suggest-show
+
+# Bind keys
+bindkey "^F" kwik-accept-suggestion         # Ctrl+F to accept
+bindkey "^E" kwik-accept-suggestion         # Ctrl+E to accept  
+bindkey "^[[A" kwik-accept-suggestion      # Up arrow to accept
+bindkey "^[f" kwik-accept-suggestion       # Alt+f to accept word
+
+# Hook into zle - show suggestion after cursor moves
+zle -N zle-keymap-select kwik-suggest-show
+zle -N zle-line-init kwik-suggest-show
+
+# Clear on line finish
+zle -N zle-line-finish kwik-clear-suggestion
+
+# Initial load
+kwik-fetch-suggestion
+
+echo "kwik-cmd auto-suggestions loaded!"
+echo "Type a command and wait - suggestions appear below"
+echo "Press Ctrl+F or Up Arrow to accept suggestion"
