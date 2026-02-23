@@ -1,0 +1,134 @@
+=== kwik-cmd Test Results ===
+Date: Mon Feb 23 09:39:45 AM GMT 2026
+
+--- Build Test ---
+Build: PASSED
+
+--- Command Tests ---
+
+1. kwik-cmd track
+✓ Tracked: echo 'test' [success]
+   Result: PASSED
+
+2. kwik-cmd suggest
+=== Suggestions for 'echo' ===
+(Ranked by: recency + frequency + directory context)
+
+  1. echo 'test' (score: 0.94, used: 1 times) [current dir]
+  2. echo hello (score: 0.93, used: 1 times) [current dir]
+  3. ls -la /tmp (score: 0.64, used: 1 times) [current dir]
+  4. ls -la (score: 0.63, used: 1 times) [current dir]
+  5. git push origin main (score: 0.63, used: 1 times) [current dir]
+  6. docker run -it ubuntu bash (score: 0.63, used: 1 times) [current dir]
+  7. npm install (score: 0.63, used: 1 times) [current dir]
+  8. git commit -m 'initial commit' (score: 0.63, used: 1 times) [current dir]
+   Result: PASSED
+
+3. kwik-cmd stats
+=== kwik-cmd Statistics ===
+Total unique commands: 8
+Total executions: 8
+
+=== Recent Commands ===
+1. echo 'test' (used 1 times, last: 2026-02-23 09:39)
+2. ls -la /tmp (used 1 times, last: 2026-02-23 09:33)
+3. echo hello (used 1 times, last: 2026-02-22 22:45)
+4. ls -la (used 1 times, last: 2026-02-22 22:41)
+5. git push origin main (used 1 times, last: 2026-02-22 22:04)
+
+=== Most Used Commands ===
+1. git commit -m 'initial commit' (used 1 times)
+2. git push origin main (used 1 times)
+3. docker run -it ubuntu bash (used 1 times)
+4. npm install (used 1 times)
+5. ls -la (used 1 times)
+   Result: PASSED
+
+4. kwik-cmd search
+=== Search results for 'echo' ===
+
+1. echo 'test'
+   Used 1 times, last: 2026-02-23 09:39 [current dir]
+
+2. echo hello
+   Used 1 times, last: 2026-02-22 22:45 [current dir]
+
+   Result: PASSED
+
+5. kwik-cmd analyze
+=== Command Pattern Analysis ===
+
+Detected Patterns:
+
+  echo (used 2 times):
+    - echo hello
+    - echo 'test'
+
+  git (used 2 times):
+    - git commit -m 'initial commit'
+    - git push origin main
+
+  ls (used 2 times):
+    - ls -la
+    - ls -la /tmp
+
+=== Failure Analysis ===
+No failures recorded yet.
+
+=== Alias Suggestions ===
+Add these to your ~/.bashrc or ~/.zshrc:
+  alias g='git'
+   Result: PASSED
+
+6. kwik-cmd version
+kwik-cmd version 0.1.0
+   Result: PASSED
+
+7. kwik-cmd export
+-rw-r--r-- 1 kaustuv kaustuv 1777 Feb 23 09:40 test_export.json
+   Result: PASSED
+
+8. kwik-cmd quick
+Recent commands:
+  1. echo 'test'
+  2. ls -la /tmp
+  3. echo hello
+  4. ls -la
+  5. git push origin main
+
+Copy the command you want to use.
+   Result: PASSED
+
+9. kwik-cmd --help
+kwik-cmd tracks terminal commands automatically, learns usage patterns,
+and suggests intelligent command completions. Works natively with Bash and Zsh.
+
+Usage:
+  kwik-cmd [command]
+
+Available Commands:
+  analyze      Analyze command patterns and suggest improvements
+  check-update Check for updates
+  completion   Generate the autocompletion script for the specified shell
+  copy         Copy a command to clipboard
+  export       Export command history
+  help         Help about any command
+  import       Import command history
+  interactive  Start interactive mode
+  quick        Quick pick from recent commands
+  rerun        Re-run the last tracked command
+  reset        Reset command history
+  search       Search commands by keywords
+  stats        Show command usage statistics
+  suggest      Get command suggestions for partial input
+  track        Track a command execution
+  version      Show version information
+
+Flags:
+  -h, --help      help for kwik-cmd
+  -v, --version   version for kwik-cmd
+
+Use "kwik-cmd [command] --help" for more information about a command.
+   Result: PASSED
+
+=== ALL TESTS PASSED ===
