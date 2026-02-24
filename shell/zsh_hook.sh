@@ -3,9 +3,9 @@
 # Add to ~/.zshrc: source /path/to/kwik-cmd/shell/zsh_hook.sh
 
 # Commands to ignore
-KWIk_IGNORE="cd ls lla ll la pwd echo exit export declare typeset unset shift
-local readonly help which what time fg bg jobs kill builtin test [ 
-true false logout shopt umask setx setenv printenv eval exec
+KWIk_IGNORE="cd ls lla ll la pwd echo exit export declare typeset unset shift local readonly help which what time fg bg jobs kill builtin test [ true false logout shopt umask setx setenv printenv eval exec"
+
+# Check if kwik-cmd is available
 [ -z $commands[(i)kwik-cmd] ] && return
 
 # Auto-track commands

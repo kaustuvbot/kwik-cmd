@@ -45,7 +45,7 @@ func Suggest(partial string) error {
 	cyan.Print("=== Suggestions for '")
 	white.Print(partial)
 	cyan.Println("' ===")
-	dim.Println("(Ranked by: recency + frequency + directory context)\n")
+	dim.Print("(Ranked by: recency + frequency + directory context)")
 
 	for i, rc := range ranked {
 		// Number in bold cyan
@@ -65,6 +65,83 @@ func Suggest(partial string) error {
 	}
 
 	return nil
+}
+
+// SuggestPlain returns command suggestions as plain text (no colors/headers)
+// Used by zsh shell integration for inline suggestions
+func SuggestPlain(partial string, limit int) ([]string, error) {
+	if err := db.Init(); err != nil {
+		return nil, fmt.Errorf("failed to initialize database: %w", err)
+	}
+	defer db.Close()
+
+	currentDir, _ := os.Getwd()
+	partial = strings.TrimSpace(partial)
+
+	ranked, err := db.GetRankedCommands(partial, currentDir, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ranked commands: %w", err)
+	}
+
+	commands := make([]string, 0, len(ranked))
+	for _, rc := range ranked {
+		commands = append(commands, rc.FullCommand)
+	}
+
+	return commands, nil
+}
+
+// SuggestPlainSplit returns command suggestions split by recent and frequent
+// Returns a map with "recent" and "frequent" keys
+// Used by zsh shell integration for categorized suggestions
+func SuggestPlainSplit(partial string, limit int) (map[string][]string, error) {
+	if err := db.Init(); err != nil {
+		return nil, fmt.Errorf("failed to initialize database: %w", err)
+	}
+	defer db.Close()
+
+	partial = strings.TrimSpace(partial)
+
+	// Get recent commands
+	recentCmds, err := db.GetRecentCommands(limit * 2)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recent commands: %w", err)
+	}
+
+	// Get frequent commands
+	frequentCmds, err := db.GetTopCommands(limit * 2)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get frequent commands: %w", err)
+	}
+
+	// Filter by partial match if provided
+	var recentFiltered []string
+	var frequentFiltered []string
+
+	for _, c := range recentCmds {
+		if partial == "" || strings.HasPrefix(strings.ToLower(c.Base), strings.ToLower(partial)) ||
+			strings.HasPrefix(strings.ToLower(c.FullCommand), strings.ToLower(partial)) {
+			recentFiltered = append(recentFiltered, c.FullCommand)
+			if len(recentFiltered) >= limit {
+				break
+			}
+		}
+	}
+
+	for _, c := range frequentCmds {
+		if partial == "" || strings.HasPrefix(strings.ToLower(c.Base), strings.ToLower(partial)) ||
+			strings.HasPrefix(strings.ToLower(c.FullCommand), strings.ToLower(partial)) {
+			frequentFiltered = append(frequentFiltered, c.FullCommand)
+			if len(frequentFiltered) >= limit {
+				break
+			}
+		}
+	}
+
+	return map[string][]string{
+		"recent":   recentFiltered,
+		"frequent": frequentFiltered,
+	}, nil
 }
 
 // Search searches commands by keywords
@@ -93,7 +170,7 @@ func Search(keywords string) error {
 
 	cyan.Print("=== Search results for '")
 	white.Print(keywords)
-	cyan.Println("' ===\n")
+	cyan.Print("' ===")
 
 	var matches []db.RankedCommand
 	for _, c := range all {
@@ -153,8 +230,83 @@ func Search(keywords string) error {
 		if currentDir != "" && rc.Directory == currentDir {
 			magenta.Print(" [current dir]")
 		}
-		fmt.Println("\n")
+		fmt.Println()
 	}
 
 	return nil
+}
+
+// SearchPlain returns search results as plain text (no colors/headers)
+// Used by zsh shell integration for keyword search
+func SearchPlain(keywords string, limit int) ([]string, error) {
+	if err := db.Init(); err != nil {
+		return nil, fmt.Errorf("failed to initialize database: %w", err)
+	}
+	defer db.Close()
+
+	keywords = strings.TrimSpace(keywords)
+	if keywords == "" {
+		return nil, fmt.Errorf("please provide search keywords")
+	}
+
+	words := strings.Fields(strings.ToLower(keywords))
+	all, err := db.GetRecentCommands(100)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get commands: %w", err)
+	}
+
+	var matches []db.RankedCommand
+	for _, c := range all {
+		cmdLower := strings.ToLower(c.FullCommand)
+		match := true
+		for _, w := range words {
+			if !strings.Contains(cmdLower, w) {
+				match = false
+				break
+			}
+		}
+		if match {
+			score := float64(c.Frequency) * 0.5
+			matches = append(matches, db.RankedCommand{
+				Command: c,
+				Score:   score,
+			})
+		}
+	}
+
+	if len(matches) == 0 {
+		keywordResults, err := db.SearchByKeyword(keywords)
+		if err != nil {
+			return nil, fmt.Errorf("search failed: %w", err)
+		}
+		for _, c := range keywordResults {
+			matches = append(matches, db.RankedCommand{
+				Command: c,
+				Score:   float64(c.Frequency),
+			})
+		}
+	}
+
+	if len(matches) == 0 {
+		return []string{}, nil
+	}
+
+	// Sort by score
+	for i := 0; i < len(matches)-1; i++ {
+		for j := i + 1; j < len(matches); j++ {
+			if matches[j].Score > matches[i].Score {
+				matches[i], matches[j] = matches[j], matches[i]
+			}
+		}
+	}
+
+	commands := make([]string, 0, len(matches))
+	for i, rc := range matches {
+		if i >= limit {
+			break
+		}
+		commands = append(commands, rc.FullCommand)
+	}
+
+	return commands, nil
 }

@@ -26,7 +26,7 @@ var analyzeCmd = &cobra.Command{
 		}
 		defer db.Close()
 
-		bold.Println("=== Command Pattern Analysis ===\n")
+		bold.Print("=== Command Pattern Analysis ===")
 
 		// Show patterns
 		patterns, err := db.DetectPatterns()
